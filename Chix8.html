@@ -1,0 +1,1888 @@
+
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>narrow_fixed5 — Game Viewer (sky by time + sun) — UI updated</title>
+  <style>
+    :root{--ui-radius:12px}
+    html,body{height:100%;margin:0;background:#0a0a0a;font-family:Inter,system-ui,Arial;overflow:hidden;color:#fff}
+    canvas{display:block;width:100%;height:100%}
+
+/* joystick style */
+.ui-bottom{ position:fixed; left:0; right:0; bottom:12px; z-index:40; pointer-events:none; }
+/* left-joystick now fixed so we can move it to touch position */
+.left-joystick{
+  position: fixed;
+  left: 18px; bottom: 18px;
+  width:140px; height:140px;
+  pointer-events:none;
+  border-radius:999px;
+  background: rgba(0,0,0,0.25);
+  display:flex; align-items:center; justify-content:center;
+  touch-action:none;
+  transform: translateZ(0);
+  transition: opacity 140ms ease, transform 140ms ease;
+  opacity: 0;
+  visibility: hidden;
+  z-index: 60;
+}
+.left-joystick.visible{
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.stick{ width:58px; height:58px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); box-shadow:0 8px 18px rgba(0,0,0,0.5); transform: translate(0,0); transition: transform 0.02s linear; }
+
+/* right controls */
+.right-drag{ position: fixed; top: 0; bottom: 0; left: 50%; right: 0; pointer-events:auto; touch-action:none; z-index: 20; }
+.right-controls{ position: fixed; right: 18px; bottom: 84px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: auto; z-index: 120; }
+
+/* jump button - styled to match joystick theme */
+.jumpBtn{
+  width: 64px; height: 64px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(0,0,0,0.18));
+  display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.45); pointer-events:auto; font-size:16px; color:#e6e6e6; font-weight:700;
+  touch-action: manipulation; transform-origin: center center; transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.jumpBtn:active{ transform: scale(0.96); box-shadow: 0 6px 12px rgba(0,0,0,0.5); }
+.jumpBtn:hover{ background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.14)); }
+/* [MODIFIKASI] Tombol Dash perlu 'touch-action: none' untuk menangkap swipe */
+#dashBtn { touch-action: none; }
+
+
+.fsBtn{ position: fixed; right: 14px; bottom: 14px; width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.08); cursor:pointer; z-index: 140; pointer-events:auto; transition: background 120ms; }
+.fsBtn:hover{ background: rgba(255,255,255,0.03); }
+.stat { position: fixed; left: 12px; top: 12px; padding:6px 10px; border-radius:10px; background: rgba(0,0,0,0.45); font-size:13px; z-index:50; color:#ddd; pointer-events:none; }
+.visually-hidden{ position: absolute!important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap;}
+
+/* Loading overlay - full screen background (SIMPLIFIED) */
+#loadingOverlay{ position: fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; background-color: rgba(6,6,6,0.85); transition: opacity 360ms ease, visibility 360ms; }
+#loadingOverlay.hidden{ opacity:0; visibility:hidden; pointer-events:none; }
+/* use full-screen background image (cover) */
+#loadingOverlay.bgImage{ background-size: cover; background-position: center; background-repeat: no-repeat; }
+
+/* Progress bar (RE-STYLED) */
+.progressWrap{
+  width: 90%;
+  max-width: 600px;
+  background: rgba(255,255,255,0.04);
+  height:12px;
+  border-radius:8px;
+  overflow:hidden;
+  /* Diposisikan di bawah-tengah */
+  position: fixed;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+}
+.progressBar{ height:100%; width:0%; background: linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06)); box-shadow: inset 0 -2px 8px rgba(255,255,255,0.04); transition: width 160ms linear; }
+
+
+/* === TOMBOL SPECIAL (QTE) (DIUBAH) === */
+.specialBtn {
+  /* Tiru style jumpBtn */
+  width: 64px; height: 64px; border-radius: 999px;
+  border: 3px solid rgba(255, 255, 100, 0.4);
+  background: linear-gradient(180deg, rgba(255, 220, 0, 0.25), rgba(100, 80, 0, 0.4));
+  display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.45), 0 0 20px rgba(255, 200, 0, 0.2);
+  /* Ukuran font disesuaikan */
+  font-size: 14px; 
+  color:#fff; font-weight: 700;
+  touch-action: manipulation; transform-origin: center center;
+  transition: opacity 150ms ease, visibility 150ms, transform 120ms ease, box-shadow 120ms ease;
+  
+  /* Sembunyikan by default (diposisikan oleh flex parent) */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.specialBtn.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.specialBtn:active {
+  transform: scale(0.96);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.5), 0 0 30px rgba(255, 200, 0, 0.4);
+}
+
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+
+</head>
+<body>
+  <div id="loadingOverlay" class="bgImage" style="background-image: url('https://raw.githubusercontent.com/viqihakbarrr-cyber/NARWORLD/main/NOIDloadingscreen.jpg');">
+    <div class="progressWrap"><div class="progressBar" id="progressBar"></div></div>
+  </div>
+
+<canvas id="c"></canvas>
+
+  <div class="stat" id="stat">Loading...</div>
+
+  <div class="ui-bottom">
+    <div class="left-joystick" id="leftJoy" aria-hidden="true">
+      <div class="stick" id="stick"></div>
+    </div>
+  </div>
+  <div class="right-drag" id="rightDrag" aria-hidden="true"></div>
+  <div class="right-controls" id="rightControls">
+    <button class="specialBtn" id="specialBtn" aria-label="Special Attack">special</button>
+    <button class="jumpBtn" id="dashBtn" title="Dash" aria-label="Dash">dash</button>
+    <button class="jumpBtn" id="attackBtn" title="Attack" aria-label="Attack">attack</button>
+    <button class="jumpBtn" id="jumpBtn" title="Jump" aria-label="Jump">jump</button>
+  </div>
+  <button class="fsBtn" id="fsBtn" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+    <svg id="fsIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 9V3h6"></path>
+      <path d="M21 15v6h-6"></path>
+      <path d="M21 3h-6v6"></path>
+      <path d="M3 21v-6h6"></path>
+    </svg>
+  </button>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { FBXLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
+// ** [PERBAIKAN] Impor SkeletonUtils menggunakan namespace import **
+import * as SkeletonUtils from 'https://unpkg.com/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
+// ** [BARU] Impor BufferGeometryUtils untuk rumput (dari test.html) **
+import * as BufferGeometryUtils from 'https://unpkg.com/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js';
+
+
+// ----- CONFIG -----
+// ** Global Fade Durations **
+const FADE_MOVE = 0.45;   // Transisi untuk idle, walk, run
+const FADE_ATTACK = 0.55; // Transisi untuk combo serangan
+
+const MODEL_URL = 'https://raw.githubusercontent.com/viqihakbarrr-cyber/NARWORLD/main/Ciix.fbx';
+const TEX_BASE = 'https://raw.githubusercontent.com/viqihakbarrr-cyber/NARWORLD/main/';
+const IDLE_FBX = TEX_BASE + 'HnoidSklet_Idle.fbx';
+const IDLE_VARI_FBX = TEX_BASE + 'HnoidSklet_IdleVariasi.fbx';
+const WALK_FBX = TEX_BASE + 'HnoidSklet_Walking.fbx';
+const RUN_FBX = TEX_BASE + 'HnoidSklet_Running.fbx';
+
+// ** Jump anim URLs (user-provided) **
+const JUMP1_FBX = TEX_BASE + 'Hnoidsklet_Jump1.fbx';
+const JUMP2_FBX = TEX_BASE + 'Hnoidsklet_Jump2.fbx';
+const JUMP3_FBX = TEX_BASE + 'Hnoidsklet_Jump3.fbx';
+const JUMP4_FBX = TEX_BASE + 'Hnoidsklet_Jump4.fbx';
+const JUMP5_FBX = TEX_BASE + 'Hnoidsklet_Jump5.fbx';
+
+// ** Attack anim URLs (user-provided) **
+const PUNCH_LEFT_FBX = TEX_BASE + 'Hnoidsklet_punchleft.fbx';
+const PUNCH_RIGHT_FBX = TEX_BASE + 'Hnoidsklet_punchright.fbx';
+const ELBOW_LEFT_FBX = TEX_BASE + 'Hnoidsklet_elbowleft.fbx';
+const ELBOW_RIGHT_FBX = TEX_BASE + 'Hnoidsklet_elbowright.fbx';
+const KICK_FBX = TEX_BASE + 'Hnoidsklet_kick.fbx';
+// ** Animasi BARU **
+const JAB_LEFT_FBX = TEX_BASE + 'Hnoidsklet_jableft.fbx';
+const JAB_RIGHT_FBX = TEX_BASE + 'Hnoidsklet_jabright.fbx';
+const KICK_PASIF_FBX = TEX_BASE + 'Hnoidsklet_kickpasif.fbx';
+
+// ** Animasi DASH BARU **
+const DASH_LEFT_FBX = TEX_BASE + 'Hnoidsklet_Dashleft.fbx';
+const DASH_RIGHT_FBX = TEX_BASE + 'Hnoidsklet_Dashright.fbx';
+// ** [BARU] Animasi ROLL **
+const ROLL_FBX = TEX_BASE + 'Hnoidsklet_Roll.fbx';
+
+// ** [DIHAPUS] URL RUMPUT FBX DIHAPUS **
+
+// ** [BARU] Konfigurasi Rumput Shader (dari test.html) **
+const GRASS_COUNT = 9000; // Jumlah helai rumput
+// [MODIFIKASI] Area 1m terlalu kecil, sesuaikan dengan ukuran dataran (200x200)
+const GRASS_TERRAIN_AREA = 10; // Area penyebaran (200x200 meter, berpusat di 0,0)
+
+
+// ** [MODIFIKASI] Tektur Lantai Baru (Single Texture) **
+const FLOOR_DIFF = 'https://raw.githubusercontent.com/viqihakbarrr-cyber/NARWORLD/main/GroundGreen.jpg'; // URL BARU
+// Hapus konstanta PBR lainnya
+const FLOOR_AO   = null;
+const FLOOR_DISP = null;
+const FLOOR_NORM = null;
+const FLOOR_ROUGH = null;
+const FLOOR_METAL = null;
+
+// Hapus preset dan base displacement
+let DEFAULT_REPEAT = 50;
+
+// ----- renderer & scene -----
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+if ('outputColorSpace' in renderer && THREE.SRGBColorSpace !== undefined) {
+  try { renderer.outputColorSpace = THREE.SRGBColorSpace; } catch(e) {}
+} else if ('outputEncoding' in renderer) {
+  renderer.outputEncoding = THREE.sRGBEncoding;
+}
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 3.0;
+
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a0a);
+// [BARU] Tambahkan Fog (Kabut)
+// Warna akan diupdate oleh siklus siang-malam
+// Jarak (mulai 30m, penuh di 120m)
+scene.fog = new THREE.Fog(0x0a0a0a, 30, 120);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 2000); camera.position.set(0,1.6,3);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enabled = false;
+
+// Lights
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x202226, 0.55); scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(3,6,2); dir.castShadow = true; dir.shadow.camera.left = -6; dir.shadow.camera.right = 6; dir.shadow.camera.top = 6; dir.shadow.camera.bottom = -6; dir.shadow.mapSize.set(2048,2048); dir.shadow.bias = -0.0005; scene.add(dir);
+scene.add(dir.target); // [PERBAIKAN BUG 2] Tambahkan target ke scene
+const amb = new THREE.AmbientLight(0xffffff, 0.08); scene.add(amb);
+
+// SKY
+const skyUniforms = { topColor: { value: new THREE.Color(0x9dd6ff) }, bottomColor: { value: new THREE.Color(0x0b1220) }, offset: { value: 0.0 }, exponent: { value: 0.6 } };
+const skyGeo = new THREE.SphereGeometry(500, 32, 15);
+const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, uniforms: skyUniforms, vertexShader: `varying vec3 vWorldPosition; void main(){ vec4 worldPosition = modelMatrix * vec4(position, 1.0); vWorldPosition = normalize(worldPosition.xyz); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`, fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vWorldPosition; void main(){ float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y; float t = pow(max(h, 0.0), exponent); gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0); }` });
+const skyMesh = new THREE.Mesh(skyGeo, skyMat); skyMesh.renderOrder = 0; scene.add(skyMesh);
+
+const pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader();
+
+// Ground
+const groundGeo = new THREE.PlaneGeometry(200,200,256,256); 
+groundGeo.rotateX(-Math.PI/2);
+
+// --- [MODIFIKASI DIMULAI] ---
+
+// [BARU] Fungsi untuk memodifikasi geometri menjadi dataran bergelombang
+function createTerrain(geometry) {
+  const positions = geometry.attributes.position;
+  const vertex = new THREE.Vector3();
+  
+  // Fungsi noise matematika untuk ketinggian
+  function getTerrainHeightAt(x, z) {
+      const freq1 = 0.05; // Frekuensi gundukan besar
+      const amp1 = 3.0;   // Ketinggian gundukan besar (3 meter)
+      const freq2 = 0.15; // Frekuensi gundukan kecil
+      const amp2 = 1.2;   // Ketinggian gundukan kecil (1.2 meter)
+      
+      let height = 0;
+      // Kombinasi sin/cos untuk membuat bukit dan lembah yang terlihat alami
+      height += Math.sin(x * freq1) * Math.cos(z * freq1) * amp1;
+      height += Math.sin(x * freq2 + 0.5) * Math.cos(z * freq2 + 0.3) * amp2;
+      return height;
+  }
+
+  for (let i = 0; i < positions.count; i++) {
+    vertex.fromBufferAttribute(positions, i); // Dapatkan x, y, z (setelah rotasi, y adalah tinggi)
+
+    // Hitung ketinggian baru berdasarkan posisi x dan z
+    const newHeight = getTerrainHeightAt(vertex.x, vertex.z);
+    
+    // Terapkan ketinggian baru ke vertex.y
+    positions.setY(i, newHeight);
+  }
+  
+  geometry.computeVertexNormals(); // Sangat penting untuk pencahayaan yang benar!
+  positions.needsUpdate = true;
+  
+  // Simpan fungsi noise agar bisa diakses oleh rumput
+  geometry.userData.getHeight = getTerrainHeightAt; 
+}
+
+// Panggil fungsi pada groundGeo
+createTerrain(groundGeo);
+
+// --- [MODIFIKASI SELESAI] ---
+
+const groundMat = new THREE.MeshStandardMaterial({color:0x101010, roughness:0.9});
+const groundMesh = new THREE.Mesh(groundGeo, groundMat); 
+groundMesh.receiveShadow = true; 
+groundMesh.position.y = 0; // Biarkan di 0, geometrinya sendiri sudah berubah
+scene.add(groundMesh);
+
+// Loading manager + UI elements (SIMPLIFIED)
+const loadingOverlay = document.getElementById('loadingOverlay');
+const progressBar = document.getElementById('progressBar');
+// const progressPercent = document.getElementById('progressPercent'); // DIHAPUS
+// const progressText = document.getElementById('progressText'); // DIHAPUS
+
+const manager = new THREE.LoadingManager();
+manager.onStart = function(url, itemsLoaded, itemsTotal){ setLoading(true); };
+manager.onProgress = function(url, itemsLoaded, itemsTotal){ // update bar based on textures and other managed items
+  const pct = Math.round((itemsLoaded / itemsTotal) * 80); // reserve last 20% for model finalization
+  progressBar.style.width = pct + '%';
+};
+manager.onLoad = function(){ // textures & managed assets done; model may still be parsing -- indicate near-complete
+  progressBar.style.width = '88%';
+};
+manager.onError = function(url){ console.error('Gagal memuat: ' + url); };
+
+// Texture / model loaders using manager
+const texLoader = new THREE.TextureLoader(manager);
+const loader = new FBXLoader(manager);
+
+function setLoading(show){ if(show){ loadingOverlay.classList.remove('hidden'); } else { loadingOverlay.classList.add('hidden'); } }
+
+function loadTexture(url, isColor=true){ if(!url) return Promise.resolve(null); return new Promise((res)=>{ texLoader.load(url, t=>{ if(isColor) t.encoding = THREE.sRGBEncoding; else t.encoding = THREE.LinearEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; res(t); }, undefined, ()=>res(null)); }); }
+
+// [MODIFIKASI] makeFloorMaterial dihapus karena tidak relevan dengan 1 tekstur
+
+window.setFloorTextureScale = function(repeatX = DEFAULT_REPEAT, repeatY = null){
+  repeatY = repeatY===null?repeatX:repeatY;
+  if(!groundMesh||!groundMesh.material) return console.warn('ground belum siap');
+  const mat = groundMesh.material;
+  // Hanya update 'map'
+  const t = mat.map;
+  if(t && t.isTexture){
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeatX, repeatY);
+    t.needsUpdate = true;
+  }
+  setStat(`Floor texture scale set to ${repeatX} x ${repeatY}`);
+};
+
+// window.setFloorNormalFlip dihapus karena tidak relevan
+
+async function setupFloor(){
+  try{
+    // ** [MODIFIKASI] Hanya muat satu tekstur **
+    const diff = await loadTexture(FLOOR_DIFF, true);
+
+    if (!diff) {
+      throw new Error('Tekstur lantai utama (GroundGreen.jpg) gagal dimuat.');
+    }
+
+    const REPEAT = DEFAULT_REPEAT;
+    if (diff) diff.repeat.set(REPEAT, REPEAT);
+
+    // ** [MODIFIKASI] Buat material sederhana secara langsung **
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: diff,
+      roughness: 0.85, // Buat agar tidak terlalu mengkilap (tanah)
+      metalness: 0.0,  // Tanah tidak metalik
+      envMapIntensity: 0.2 // Kurangi pantulan lingkungan
+    });
+
+    groundMesh.material.dispose();
+    groundMesh.material = floorMat;
+    groundMesh.receiveShadow = true;
+    setStat('Floor texture loaded (GroundGreen).');
+
+  } catch(e) {
+    console.warn('Floor textures failed', e);
+    setStat('Floor textures not available (network?)');
+  }
+}
+
+// Sun + time-of-day functions (unchanged)
+function makeGlowTexture(){ const c=document.createElement('canvas'); c.width=c.height=512; const ctx=c.getContext('d'); const g=ctx.createRadialGradient(256,256,0,256,256,256); g.addColorStop(0,'rgba(255,250,210,1)'); g.addColorStop(0.2,'rgba(255,230,150,0.9)'); g.addColorStop(0.6,'rgba(255,160,60,0.35)'); g.addColorStop(1,'rgba(255,120,20,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,512,512); const tx=new THREE.CanvasTexture(c); tx.encoding=THREE.sRGBEncoding; tx.needsUpdate=true; return tx; }
+let sun, sunLight, sunHalo; function createSun(){ sun = new THREE.Mesh(new THREE.SphereGeometry(1.5,32,16), new THREE.MeshBasicMaterial({color:0xfff0b8})); sun.position.set(35,45,-25); scene.add(sun); sunLight = new THREE.PointLight(0xfff1c8,1.2,300,2); sunLight.position.copy(sun.position); sunLight.castShadow=false; scene.add(sunLight); const haloMat = new THREE.SpriteMaterial({map: makeGlowTexture(), color:0xffffff, blending: THREE.AdditiveBlending, transparent:true, depthWrite:false}); sunHalo = new THREE.Sprite(haloMat); sunHalo.scale.set(28,28,1); sunHalo.position.copy(sun.position); scene.add(sunHalo); dir.position.copy(sun.position.clone().normalize().multiplyScalar(6)); }
+
+// [MODIFIKASI] (Goal 6)
+// ** [MODIFIKASI] useRealTime diubah ke false **
+let useRealTime=false; 
+// ** [MODIFIKASI] gameHour diawali dari 12.0 (siang) **
+let gameHour=12.0; 
+let timeScaleHoursPerSecond = 6 / 3600; // (Goal 6: 1 jam nyata = 6 jam game)
+
+function getWorldHour(){ if(useRealTime){ const now=new Date(); return now.getHours()+now.getMinutes()/60+now.getSeconds()/3600+now.getMilliseconds()/3600000; } return (gameHour%24+24)%24; } function advanceGameTime(delta){ if(!useRealTime) gameHour += delta * timeScaleHoursPerSecond; } function lerpColorHex(a,b,t){ const A=new THREE.Color(a); return A.lerp(new THREE.Color(b), t); } function updateSkyAndSunFromHour(hour){
+  let top=new THREE.Color(), bot=new THREE.Color();
+  if(hour>=5 && hour<8){
+    const t=(hour-5)/3;
+    bot.copy(lerpColorHex(0x04102b, 0xffb27b, t));
+    top.copy(lerpColorHex(0x020426, 0x9fd6ff, t));
+  } else if(hour>=8 && hour<17){
+    const t=(hour-8)/9;
+    bot.copy(lerpColorHex(0x7fbfff, 0x87cefa, t));
+    top.copy(lerpColorHex(0xffffff, 0xffffff, t));
+  } else if(hour>=17 && hour<20){
+    const t=(hour-17)/3;
+    bot.copy(lerpColorHex(0xffb27b, 0x04061a, t));
+    top.copy(lerpColorHex(0x9fd6ff, 0x3a1f5a, t));
+  } else {
+    let tNight=0;
+    if(hour>=20) tNight=(hour-20)/4;
+    else tNight=(hour+4)/9;
+    bot.copy(lerpColorHex(0x04061a, 0x02010b, clamp(tNight,0,1)));
+    top.copy(lerpColorHex(0x020426, 0x010114, clamp(tNight,0,1)));
+  }
+  skyUniforms.topColor.value.copy(top);
+  skyUniforms.bottomColor.value.copy(bot);
+  
+  const angle = ((hour/24)*Math.PI*2) - Math.PI/2;
+  const radius = 80;
+  const x=Math.cos(angle)*radius;
+  const y=Math.sin(angle)*radius;
+  const z=-25;
+
+  // --- PERBAIKAN DIMULAI DI SINI ---
+
+  // 1. Logika posisi matahari dan halo (keduanya harus ada)
+  if(sun && sunHalo){
+    sun.position.set(x, Math.max(y,-6), z);
+    sunHalo.position.copy(sun.position);
+  }
+  
+  // 2. Logika PointLight (sunLight)
+  if(sunLight){
+    const elev = Math.max(0, Math.sin(angle));
+    sunLight.position.copy(new THREE.Vector3(x,y,z));
+    sunLight.intensity = Math.max(0.12, elev*1.6);
+    const warm=new THREE.Color(0xffd4a0);
+    const cold=new THREE.Color(0xffffff);
+    const col = cold.clone().lerp(warm, 1-elev);
+    sunLight.color.copy(col);
+  }
+  
+  // 3. (DIPINDAHKAN) Logika Directional Light (dir)
+  // Ini harus diperbarui terlepas dari sunLight, jadi dipindahkan ke luar blok 'if(sunLight)'
+  if(dir) {
+    dir.position.copy(new THREE.Vector3(x,y,z).normalize().multiplyScalar(6));
+  }
+  
+  // 4. Logika visual halo (tergantung pada sun dan sunHalo)
+  if(sunHalo && sun && sun.material){ // Ditambahkan cek 'sun.material'
+    const pulse=1.0 + Math.sin(Date.now()*0.0012)*0.02;
+    const elev = Math.max(0, Math.sin(angle));
+    const baseScale = 18 + elev*20;
+    sunHalo.scale.set(baseScale*pulse, baseScale*pulse, 1);
+    sun.material.opacity = elev>0.02 ? 1.0 : 0.0;
+    sun.material.transparent = true;
+  }
+  
+  // --- PERBAIKAN SELESAI ---
+  
+  // [BARU] Update warna fog agar sesuai dengan horizon (bottom color)
+  if (scene.fog) {
+    scene.fog.color.copy(bot);
+  }
+}
+
+function clamp(v,a,b){ return Math.max(a, Math.min(v,b)); }
+
+// Model loader & helpers
+const loaderFBX = loader; 
+
+// [BARU] Raycaster untuk fisika dataran
+const raycaster = new THREE.Raycaster();
+const downVector = new THREE.Vector3(0, -1, 0);
+
+function setStat(msg){ const s=document.getElementById('stat'); if(s) s.textContent = msg; }
+function fitModel(object, desiredHeight=1.6){ const box=new THREE.Box3().setFromObject(object); if(box.isEmpty()) return; const size=box.getSize(new THREE.Vector3()); const maxDim=Math.max(size.x,size.y,size.z); const scale=maxDim>0? (desiredHeight/maxDim):1; object.scale.setScalar(scale); object.updateMatrixWorld(true); const box2=new THREE.Box3().setFromObject(object); const center=box2.getCenter(new THREE.Vector3()); object.position.sub(center); object.updateMatrixWorld(true); const boxFinal=new THREE.Box3().setFromObject(object); object.position.y -= boxFinal.min.y; }
+let modelRoot = null; let controlledMeshes = [];
+let grassMesh = null; // ** [BARU] Variabel global untuk rumput shader **
+
+function prepareModel(obj){ controlledMeshes=[]; obj.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; if(!c.material || !(c.material.isMeshStandardMaterial || c.material.isMeshPhysicalMaterial)){ const old = Array.isArray(c.material)? c.material[0] : c.material; const newMat = new THREE.MeshPhysicalMaterial({ color: old && old.color ? old.color.clone() : new THREE.Color(0xaaaaaa), map: old && old.map ? old.map : null, normalMap: old && old.normalMap ? old.normalMap : null, aoMap: old && old.aoMap ? old.aoMap : null, metalness: 0.0, roughness: 0.34, envMapIntensity: 0.9 }); if (old && old.transparent){ newMat.transparent=true; newMat.opacity=old.opacity; } c.material = newMat; } else { if ('roughness' in c.material) c.material.roughness = 0.34; if ('metalness' in c.material) c.material.metalness = (c.material.metalness == null) ? 0.0 : c.material.metalness; } if (c.material && c.material.aoMap){ if(!c.geometry.attributes.uv2 && c.geometry.attributes.uv) c.geometry.setAttribute('uv2', c.geometry.attributes.uv.clone()); } controlledMeshes.push(c); } }); }
+
+function loadFBX(url){ // returns promise that resolves only after parse, prepareModel, fitModel and added to scene
+  return new Promise((resolve,reject)=>{
+    // first try loader.load which reports progress via XHR
+    loaderFBX.load(url, (obj)=>{
+      resolve(obj);
+    }, (xhr)=>{
+      if(xhr && xhr.lengthComputable){ const pct = Math.round((xhr.loaded / xhr.total) * 100); progressBar.style.width = Math.min(80, Math.round(pct * 0.8)) + '%'; }
+    }, async (err)=>{
+      // fallback: fetch + parse (no progress events) — show parsing message and keep overlay until parse done
+      try{
+        const r = await fetch(url);
+        const buf = await r.arrayBuffer();
+        const parsed = loaderFBX.parse(buf, url);
+        resolve(parsed);
+      }catch(e){ reject(e); }
+    });
+  });
+}
+
+function applyDefaultMaterialSettings(){ controlledMeshes.forEach(mesh=>{ const mats = Array.isArray(mesh.material)? mesh.material : [mesh.material]; mats.forEach(m=>{ if(!m) return; if('metalness' in m) m.metalness = (m.metalness == null) ? 0.0 : m.metalness; if('roughness' in m) m.roughness = 0.39; if('envMapIntensity' in m) m.envMapIntensity = 0.9; if('emissive' in m) m.emissive = m.emissive || new THREE.Color(0x000000); m.needsUpdate=true; }); }); }
+
+// Animation system
+let mixer = null;
+const actions = {}; // keys: idleDefault, idleVar, walk, run, jump1-5, punchleft/right, elbowleft/right, jableft/right, kick, kickpasif, dashleft, dashright, roll
+let currentActionName = null;
+let idleVariationTimer = null;
+
+// ** State untuk Attack Combo **
+const ATTACK__DISTANCE = -1.1; // Jarak maju saat menyerang
+// ** Urutan combo baru (7 serangan) **
+const ATTACK_COMBO_ANIM = ['punchleft', 'elbowright', 'jableft', 'punchright', 'elbowleft', 'jabright', 'kick'];
+let isAttacking = false;
+let attackCombo = 0; // 0 = not attacking, 1 = first hit, etc.
+let attackQueued = false; // true if player clicked again during an attack
+
+// ** [BARU] State untuk Lunge Easing (Goal 3) **
+let isLunging = false;
+let lungeTime = 0;
+const LUNGE_DURATION = 0.15; // Durasi lunge pendek
+let lungeStartPos = new THREE.Vector3();
+let lungeTargetPos = new THREE.Vector3();
+let lungeDirection = new THREE.Vector3();
+
+// ** State untuk Special Kick (QTE) **
+const specialBtn = document.getElementById('specialBtn');
+let specialKickTimer = null;
+let specialKickPrimed = false; // true jika tombol special ditekan tepat waktu
+
+// ** State untuk Dash **
+const DASH_SPEED = 10.0; // [MODIFIKASI] Kecepatan dash (dinaikkan)
+let isDashing = false;
+let dashDirection = new THREE.Vector3(); // [MODIFIKASI] Ini akan menyimpan arah WORLD-SPACE dash
+// ** [BARU] Durasi Dash (detik) dan Counter (Goal 4) **
+const DASH_DURATION = 0.6; // Durasi Dash yang Konsisten (0.25 detik)
+let dashTime = 0; // Waktu yang telah berlalu selama dash
+
+// ** [MODIFIKASI] State untuk Roll **
+const ROLL_DISTANCE = 3; // Jarak roll (meter)
+const ROLL_SPEED = -10; // ** [BARU] Kecepatan roll (m/s) ** (Misal: 8 m/s)
+const ROLL_DURATION = ROLL_DISTANCE / ROLL_SPEED; // Durasi dihitung: Jarak / Kecepatan
+let isRolling = false;
+let rollTime = 0;
+let rollStartPos = new THREE.Vector3();
+let rollTargetPos = new THREE.Vector3();
+
+// ** [BARU] State untuk deteksi Swipe Dash **
+let isDashSwipeActive = false;
+let dashSwipeId = null;
+let dashSwipeStartX = 0;
+let dashSwipeStartY = 0;
+const SWIPE_THRESHOLD_PX = 30; // Jarak minimum (px) untuk dianggap swipe
+
+
+function clearIdleVariationTimer(){ if(idleVariationTimer){ clearTimeout(idleVariationTimer); idleVariationTimer = null; } }
+
+function scheduleIdleVariation(){ clearIdleVariationTimer(); // schedule only when idleDefault is playing
+  const delay = 5000 + Math.random() * 15000; // 5s to 20s
+  idleVariationTimer = setTimeout(()=>{ idleVariationTimer = null; // only trigger if currently idleDefault (and model not moving)
+    if(currentMoveState === 'idle' && actions.idleVar && actions.idleDefault){
+      playAction('idleVar', 0.80);
+    } else {
+      scheduleIdleVariation();
+    }
+  }, delay);
+}
+
+function playAction(name, fade=0.18){
+  if(!actions[name]) return;
+  if(currentActionName === name) return;
+  const prev = actions[currentActionName];
+  const next = actions[name];
+  next.reset();
+  next.fadeIn = fade;
+  next.play();
+  if(prev){
+    try{ prev.crossFadeTo(next, fade, false); }catch(e){}
+  }
+  currentActionName = name;
+}
+
+// ** Helper untuk menggerakkan player maju (LUNGE) (DIUBAH UNTUK EASING - Goal 3) **
+function Forward() {
+  if (!player) return;
+  // Buat vektor yang menunjuk ke "depan" model
+  const forwardVector = new THREE.Vector3(0, 0, -1);
+  // Putar vektor agar sesuai dengan rotasi player saat ini
+  forwardVector.applyQuaternion(player.quaternion);
+  lungeDirection.copy(forwardVector); // Simpan arah
+
+  // Hitung posisi awal dan target
+  lungeStartPos.copy(player.position);
+  lungeTargetPos.copy(lungeStartPos).addScaledVector(lungeDirection, ATTACK__DISTANCE); // ATTACK__DISTANCE negatif
+
+  // Mulai state lunge
+  isLunging = true;
+  lungeTime = 0;
+
+  // JANGAN pindahkan player di sini. updateMovement akan melakukannya.
+  // player.position.addScaledVector(forwardVector, ATTACK__DISTANCE);
+}
+
+// ** Helper untuk tombol Special (QTE) **
+function showSpecialButton() {
+  // Hapus timer lama jika ada
+  if (specialKickTimer) clearTimeout(specialKickTimer);
+  // Reset status
+  specialKickPrimed = false;
+  // Tampilkan tombol
+  specialBtn.classList.add('visible');
+  // Set timer untuk menyembunyikan tombol setelah 1 detik
+  specialKickTimer = setTimeout(() => {
+    hideSpecialButton();
+  }, 1000); // 1 detik
+}
+
+function hideSpecialButton() {
+  specialBtn.classList.remove('visible');
+  if (specialKickTimer) {
+    clearTimeout(specialKickTimer);
+    specialKickTimer = null;
+  }
+  // JANGAN reset specialKickPrimed di sini. Kita ingin tahu apakah itu ditekan.
+}
+
+
+// ** Helper untuk mengembalikan animasi ke idle/move **
+function resumeMovementAnimation(fade = FADE_MOVE) {
+  if (currentMoveState === 'idle') {
+    if (actions.idleDefault) playAction('idleDefault', fade);
+    scheduleIdleVariation();
+  } else if (currentMoveState === 'walk') {
+    if (actions.walk) playAction('walk', fade); else if (actions.idleDefault) playAction('idleDefault', fade);
+  } else if (currentMoveState === 'run') {
+    if (actions.run) playAction('run', fade); else if (actions.walk) playAction('walk', fade); else if (actions.idleDefault) playAction('idleDefault', fade);
+  } else {
+    if (actions.idleDefault) playAction('idleDefault', fade);
+  }
+}
+
+// ** Helper untuk mereset state attack **
+function resetAttackState() {
+  isAttacking = false;
+  attackCombo = 0;
+  attackQueued = false;
+  movementLocked = false;
+  animationLocked = false;
+  isLunging = false; // [TAMBAHAN] Reset lunge (Goal 3)
+  lungeTime = 0; // [TAMBAHAN] (Goal 3)
+  // Bersihkan juga state QTE
+  hideSpecialButton();
+  specialKickPrimed = false;
+  
+  setStat('Serangan selesai.');
+  resumeMovementAnimation(); // Akan menggunakan FADE_MOVE by default
+}
+
+// ** Helper untuk mereset state dash **
+function resetDashState() {
+  isDashing = false;
+  movementLocked = false;
+  animationLocked = false;
+  dashDirection.set(0, 0, 0);
+  velocity.set(0, 0, 0); // [MODIFIKASI] Pastikan velocity berhenti
+  dashTime = 0; // [TAMBAHAN] Reset dashTime (Goal 4)
+  setStat('Dash selesai.');
+  resumeMovementAnimation(FADE_MOVE);
+}
+
+// ** [BARU] Helper untuk mereset state roll **
+function resetRollState() {
+  isRolling = false;
+  movementLocked = false;
+  animationLocked = false;
+  rollTime = 0;
+  setStat('Roll selesai.');
+  resumeMovementAnimation(FADE_MOVE);
+}
+
+function setupAnimationFinishedListener(){
+  if(!mixer) return;
+  mixer.addEventListener('finished', (e)=>{
+    // handle idle variation end
+    if(e && e.action === actions.idleVar){
+      if(actions.idleDefault){
+        playAction('idleDefault', 0.9); // Jaga fade lambat untuk idle var
+        scheduleIdleVariation();
+      }
+    }
+    // when Jump1 (charging idle) finished -> start Jump2 (air) and apply vertical velocity
+    if(e && e.action === actions.jump1){
+      // ensure jump1 existed
+      if(!actions.jump2) return;
+      // start air animation (was loop)
+      if(actions.jump2){
+        // changed: play jump2 once (not looping) and allow movement during jump2 so player can steer in air
+        actions.jump2.setLoop(THREE.LoopOnce, 0);
+        actions.jump2.clampWhenFinished = true;
+        playAction('jump2', FADE_ATTACK); // Transisi cepat
+        // allow movement while jump2 plays (but keep animation locked so jump2 isn't interrupted)
+        movementLocked = false;
+        animationLocked = true;
+      }
+      // apply upward velocity so physics will carry the player up (start actual jump now)
+      verticalVel = JUMP_V;
+      isGrounded = false;
+      jumpPhase = 'air';
+      setStat('Melompat — di udara (jump2 dimulai, pergerakan dibuka untuk kontrol di udara)');
+    }
+
+    // when Jump4 (charging while moving) finished -> start Jump5 (moving-air) and apply upward velocity
+    if(e && e.action === actions.jump4){
+      if(!actions.jump5) return;
+      // start moving-air animation (once)
+      actions.jump5.setLoop(THREE.LoopOnce, 0);
+      actions.jump5.clampWhenFinished = true;
+      playAction('jump5', FADE_ATTACK); // Transisi cepat
+      // apply upward velocity so physics will carry the player up (start actual jump now)
+      verticalVel = JUMP_V;
+      isGrounded = false;
+      jumpPhase = 'air';
+      // During moving jump the player should remain able to move, but animation should stay as jump5
+      movementLocked = false;
+      animationLocked = true; // keep jump5 playing until landing or finished
+      setStat('Melompat (dari gerak) — di udara');
+    }
+
+    // when Jump2 (air idle anim) finished -> unlock movement so player can move in air
+    if(e && e.action === actions.jump2){
+      // unlock movement after jump2 completed
+      movementLocked = false;
+      animationLocked = false; // allow animation switching (player can move / change state)
+      setStat('Jump2 selesai — pergerakan dibuka (bisa bergerak di udara)');
+      // note: we remain in 'air' phase until physics detects landing; landing logic will decide whether to play jump3 or resume movement animations
+    }
+
+    // when Jump5 (moving-air) finished -> keep player able to move; if animation finished before landing we simply allow switching
+    if(e && e.action === actions.jump5){
+      animationLocked = false; // allow switching to movement animations (player input can override)
+      movementLocked = false;
+      setStat('Jump5 selesai — anim moving-air selesai, kontrol dibuka');
+    }
+
+    // when Jump3 (landing anim) finished -> allow movement again and go to idle/run depending on state
+    if(e && e.action === actions.jump3){
+      // landing finished
+      movementLocked = false;
+      animationLocked = false; // allow animation switching again
+      isJumping = false;
+      jumpPhase = null;
+      setStat('Mendarat — kontrol dikembalikan');
+      // prefer resuming movement animation if player was moving
+      resumeMovementAnimation(); // Akan menggunakan FADE_MOVE
+    }
+    
+    // ** LOGIKA UNTUK ATTACK COMBO SELESAI (DIPERBARUI) **
+    
+    // Dapatkan nama animasi dari array kombo. Ini mungkin 'kick'
+    const currentAttackAnimName = ATTACK_COMBO_ANIM[attackCombo - 1];
+    
+    // --- PERBAIKAN DI SINI ---
+    // Cek jika animasi yang selesai (e.action) adalah animasi kombo 'kick' ATAU 'kickpasif'
+    if (isAttacking && e && (e.action === actions[currentAttackAnimName] || e.action === actions.kickpasif)) { 
+      
+      // Saya menghapus blok 'if' khusus untuk kickpasif yang ada di sini sebelumnya,
+      // karena itu berlebihan dan menyebabkan bug.
+      
+      if (attackQueued) {
+        // Player menekan tombol lagi, mainkan serangan berikutnya
+        attackQueued = false;
+        attackCombo++;
+
+        // Cek apakah kombo selesai (melebihi 7 serangan)
+        if (attackCombo > ATTACK_COMBO_ANIM.length) {
+          resetAttackState();
+        } else {
+          // Tentukan animasi berikutnya
+          let nextAnimName;
+
+          // Cek apakah ini serangan ke-7 (terakhir)
+          if (attackCombo === ATTACK_COMBO_ANIM.length) {
+            // Ini adalah serangan terakhir. Cek apakah QTE berhasil.
+            nextAnimName = specialKickPrimed ? 'kickpasif' : 'kick';
+            setStat(specialKickPrimed ? 'Special Kick!' : 'Kick!');
+            specialKickPrimed = false; // Konsumsi status QTE
+            hideSpecialButton(); // Pastikan tombol QTE hilang
+          } else {
+            // Ini masih serangan 1-6
+            nextAnimName = ATTACK_COMBO_ANIM[attackCombo - 1];
+            setStat(`Serangan ${attackCombo}: ${nextAnimName}`);
+          }
+
+          // Mainkan animasi berikutnya
+          if (actions[nextAnimName]) {
+            playAction(nextAnimName, FADE_ATTACK); // Transisi serangan cepat
+            Forward(); // Gerak maju di setiap serangan
+
+            // ** Trigger QTE **
+            // Jika kita BARU SAJA memainkan serangan ke-6 (jabright)
+            if (attackCombo === 6 && nextAnimName === 'jabright') {
+              showSpecialButton(); // Tampilkan tombol QTE
+            }
+
+          } else {
+            // Animasi berikutnya tidak ditemukan, reset
+            resetAttackState();
+          }
+        }
+      } else {
+        // Animasi serangan selesai dan tidak ada antrian, reset
+        resetAttackState();
+      }
+    }
+    
+    // ** LOGIKA UNTUK DASH SELESAI **
+    // [MODIFIKASI] Hanya cek 'dashleft' atau 'dashright'
+    if (isDashing && e && (e.action === actions.dashleft || e.action === actions.dashright)) {
+      resetDashState();
+    }
+
+    // ** [BARU] LOGIKA UNTUK ROLL SELESAI **
+    if (isRolling && e && e.action === actions.roll) {
+      resetRollState();
+    }
+
+  });
+}
+
+async function loadAndAttachAnimations(){
+  if(!modelRoot) return;
+  mixer = new THREE.AnimationMixer(modelRoot);
+
+  // helper to pick first clip or a named clip
+  async function loadAnim(url, key){
+    try{
+      const animObj = await loadFBX(url);
+      const clips = animObj.animations && animObj.animations.length ? animObj.animations : (animObj.clip ? [animObj.clip] : []);
+      if(clips.length === 0) return;
+      // pick clip by name heuristics
+      let clip = clips[0];
+      for(const c of clips){
+        const n = (c.name || '').toLowerCase();
+        if(key === 'idleDefault' && n.includes('idle')){ clip = c; break; }
+        if(key === 'idleVar' && (n.includes('var')||n.includes('vari')||n.includes('variation')||n.includes('idle'))) { clip = c; break; }
+        if(key === 'walk' && n.includes('walk')){ clip = c; break; }
+        if(key === 'run' && n.includes('run')){ clip = c; break; }
+        if(key.startsWith('jump') && (n.includes('jump') || n.includes('jump'))) { clip = c; break; }
+        // ** Tambahkan pencarian untuk attack anims **
+        if(key.startsWith('punch') && n.includes('punch')) { clip = c; break; }
+        if(key.startsWith('elbow') && n.includes('elbow')) { clip = c; break; }
+        if(key.startsWith('jab') && n.includes('jab')) { clip = c; break; } // ** Heuristic untuk jab **
+        if(key === 'kick' && n.includes('kick') && !n.includes('pasif')) { clip = c; break; } // ** Heuristic untuk kick **
+        if(key === 'kickpasif' && (n.includes('kick') && n.includes('pasif'))) { clip = c; break; } // ** Heuristic untuk kickpasif **
+        if(key.startsWith('dash') && n.includes('dash')) { clip = c; break; } // ** Heuristic untuk dash **
+        if(key === 'roll' && n.includes('roll')) { clip = c; break; } // ** [BARU] Heuristic untuk roll **
+      }
+      const action = mixer.clipAction(clip, modelRoot);
+      action.clampWhenFinished = true;
+      
+      // loop policy:
+      // ** Animasi attack, jump, kick, jab, dash, roll dan idleVar harus LoopOnce **
+      if(key === 'idleVar' || key.startsWith('jump') || key.startsWith('punch') || key.startsWith('elbow') || key.startsWith('jab') || key === 'kick' || key === 'kickpasif' || key.startsWith('dash') || key === 'roll'){ 
+        action.setLoop(THREE.LoopOnce, 0); 
+        action.clampWhenFinished = true; 
+      }
+      else { 
+        action.setLoop(THREE.LoopRepeat, Infinity); 
+      }
+      actions[key] = action;
+    }catch(e){
+      console.warn('Failed load anim', url, e);
+    }
+  }
+
+  // load all animations (in parallel); include jump anims and attack anims
+  await Promise.all([
+    loadAnim(IDLE_FBX, 'idleDefault'),
+    loadAnim(IDLE_VARI_FBX, 'idleVar'),
+    loadAnim(WALK_FBX, 'walk'),
+    loadAnim(RUN_FBX, 'run'),
+    loadAnim(JUMP1_FBX, 'jump1'),
+    loadAnim(JUMP2_FBX, 'jump2'),
+    loadAnim(JUMP3_FBX, 'jump3'),
+    loadAnim(JUMP4_FBX, 'jump4'),
+    loadAnim(JUMP5_FBX, 'jump5'),
+    // ** Muat animasi serangan **
+    loadAnim(PUNCH_LEFT_FBX, 'punchleft'),
+    loadAnim(PUNCH_RIGHT_FBX, 'punchright'),
+    loadAnim(ELBOW_LEFT_FBX, 'elbowleft'),
+    loadAnim(ELBOW_RIGHT_FBX, 'elbowright'),
+    loadAnim(KICK_FBX, 'kick'),
+    // ** Muat animasi BARU **
+    loadAnim(JAB_LEFT_FBX, 'jableft'),
+    loadAnim(JAB_RIGHT_FBX, 'jabright'),
+    loadAnim(KICK_PASIF_FBX, 'kickpasif'),
+    // ** Muat animasi DASH **
+    loadAnim(DASH_LEFT_FBX, 'dashleft'),
+    loadAnim(DASH_RIGHT_FBX, 'dashright'),
+    // ** [BARU] Muat animasi ROLL **
+    loadAnim(ROLL_FBX, 'roll')
+  ]);
+
+  // start idle default if available
+  if(actions.idleDefault){
+    playAction('idleDefault', 0.0);
+    scheduleIdleVariation();
+  }
+  setupAnimationFinishedListener();
+}
+
+
+// ----- [BARU] GRASS SYSTEM (SHADER DARI TEST.HTML) -----
+
+// Helper (dari test.html)
+function createBladeGeometry(width, height){
+  const g1 = new THREE.PlaneGeometry(width, height, 4, 8);
+  const g2 = g1.clone();
+  g2.rotateY(Math.PI/2);
+  
+  // Cek jika BufferGeometryUtils sudah di-import
+  if (!THREE.BufferGeometryUtils && !BufferGeometryUtils) {
+    console.error("BufferGeometryUtils not loaded!");
+    // Fallback sederhana jika merge gagal
+    g1.translate(0, height*0.5, 0);
+    return g1;
+  }
+  
+  // Gunakan namespace import
+  const merged = BufferGeometryUtils.mergeBufferGeometries([g1, g2]);
+  merged.translate(0, height*0.5, 0);
+  return merged;
+}
+
+// Fungsi utama (dari test.html, dimodifikasi)
+function setupProceduralGrass(count){
+  if(grassMesh){
+    grassMesh.geometry.dispose();
+    grassMesh.material.dispose();
+    scene.remove(grassMesh);
+    grassMesh = null;
+  }
+  
+  // [BARU] Ambil fungsi ketinggian dari userData groundMesh
+  // (Pastikan groundMesh sudah ada saat fungsi ini dipanggil)
+  const getTerrainHeight = groundMesh.geometry.userData.getHeight;
+  if (!getTerrainHeight) {
+      console.warn("Fungsi getHeight tidak ditemukan di groundMesh. Rumput akan datar.");
+      // Fallback jika gagal
+      getTerrainHeight = (x, z) => 0;
+  }
+
+  const bladeWidth = 0.01;
+  const bladeHeight = 0.15;
+  let bladeGeo = createBladeGeometry(bladeWidth, bladeHeight);
+
+  const grassMat = new THREE.ShaderMaterial({
+    uniforms: {
+      time: {value: 0}
+    },
+    vertexShader: `
+      uniform float time;
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+        // [MODIFIKASI] Sway disesuaikan sedikit
+        float sway = sin(time*0.003 + worldPos.x*0.28 + worldPos.z*0.22) * 0.14;
+        float tipFactor = clamp(position.y, 0.0, 1.0);
+        worldPos.x += sway * tipFactor;
+        gl_Position = projectionMatrix * modelViewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      precision mediump float;
+      varying vec2 vUv;
+      void main(){
+        vec3 base = vec3(0.06, 0.30, 0.06); // Hijau tua di bawah
+        vec3 tip = vec3(0.48, 0.85, 0.35); // Hijau muda di atas
+        float g = smoothstep(0.0, 1.0, vUv.y);
+        vec3 col = mix(base, tip, g);
+        
+        // [MODIFIKASI] Buat solid (opaque) untuk performa
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    // [MODIFIKASI] Matikan transparency untuk performa
+    transparent: false,
+    side: THREE.DoubleSide,
+    depthWrite: true // Nyalakan depth write
+  });
+
+  grassMesh = new THREE.InstancedMesh(bladeGeo, grassMat, count);
+  grassMesh.frustumCulled = true;
+  // [MODIFIKASI] Rumput shader tidak me-cast shadow, tapi bisa menerima
+  grassMesh.castShadow = false;
+  grassMesh.receiveShadow = true; // Biar lebih bagus
+
+  let dummy = new THREE.Object3D();
+  // [MODIFIKASI] Gunakan area dari GRASS_TERRAIN_AREA (sekarang 100)
+  const area = GRASS_TERRAIN_AREA / 2; 
+  
+  for(let i=0; i < count; i++){
+    // [MODIFIKASI] Area sekarang -100 sampai 100
+    const x = (Math.random()*2 - 1) * area;
+    const z = (Math.random()*2 - 1) * area;
+    
+    // [MODIFIKASI] y sekarang didapat dari fungsi ketinggian
+    const y = getTerrainHeight(x, z); 
+    
+    const scale = 0.9 + Math.random()*0.9;
+    const rot = Math.random()*Math.PI*2;
+    
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(0, rot, 0);
+    dummy.scale.set(scale, scale, scale);
+    dummy.updateMatrix();
+    grassMesh.setMatrixAt(i, dummy.matrix);
+  }
+  
+  grassMesh.instanceMatrix.needsUpdate = true;
+  scene.add(grassMesh);
+  
+  setStat(`Rumput shader (procedural) dimuat (${count} helai).`);
+}
+// ----- AKHIR GRASS SYSTEM (SHADER) -----
+
+
+// Initialize: explicitly wait for floor + model readiness before hiding loading overlay
+(async function init(){
+  setLoading(true);
+  setStat('Memulai...');
+
+  // [MODIFIKASI] Jalankan floor dan model loading secara paralel (rumput FBX dihapus)
+  const floorPromise = setupFloor();
+  
+  // model promise includes parse and prepare
+  const modelPromise = (async ()=>{
+    try{
+      const obj = await loadFBX(MODEL_URL);
+      modelRoot = obj;
+
+      // --- REVERTED: remove custom facing rotation and use Three.js default orientation ---
+      modelRoot.rotation.set(0,0,0);
+      modelRoot.updateMatrixWorld(true);
+
+      prepareModel(modelRoot);
+      fitModel(modelRoot, 1.6);
+      modelRoot.position.y = 0.02;
+      scene.add(modelRoot);
+      applyDefaultMaterialSettings();
+      setStat('Model siap — lighting restored');
+      // final progress bump
+      progressBar.style.width = '100%';
+      return true;
+    }catch(e){ console.error('Gagal muat FBX:', e); setStat('Gagal muat model — lihat console'); throw e; }
+  })();
+
+  // wait for all
+  try{
+    // [MODIFIKASI] Tunggu kedua promise selesai (floor dan model)
+    await Promise.all([floorPromise, modelPromise]);
+    
+    // [MODIFIKASI] Panggil setup rumput shader (pengganti setupGrass FBX)
+    try {
+      // Pastikan ini dipanggil SETELAH groundMesh (dan userData-nya) ada
+      setupProceduralGrass(GRASS_COUNT);
+    } catch(e) {
+      console.error("Gagal membuat rumput procedural:", e);
+      setStat("Gagal membuat rumput procedural.");
+    }
+            
+    // small delay so user sees 100%
+    await new Promise(r=>setTimeout(r, 220));
+    // load animations after model attached
+    await loadAndAttachAnimations();
+    setLoading(false);
+  }catch(e){ console.warn('Inisialisasi gagal', e); }
+
+  createSun();
+})();
+
+// Player, camera, movement, UI interactions and animate loop
+const player = new THREE.Object3D(); player.position.set(0,0,0); scene.add(player);
+function attachModelToPlayer(){ if(!modelRoot) return; if(modelRoot.parent !== player){ if(modelRoot.parent) modelRoot.parent.remove(modelRoot); modelRoot.position.set(0,0,0); player.add(modelRoot); } }
+const MOVE_SPEED = 2.8; const WALK_SPEED = MOVE_SPEED * 0.6; const RUN_SPEED = MOVE_SPEED * 1.9;
+const MOVE_ACCEL = 18.0; const ROT_ACCEL = 20.0; let velocity=new THREE.Vector3(0,0,0); let isGrounded=true; const GRAVITY=-9.8; let verticalVel=0; const JUMP_V=4.2;
+
+// ** [BARU] Variabel untuk timer Afterimage **
+let dashAfterimageTimer = 0;
+const DASH_AFTERIMAGE_INTERVAL = 0.01; // Spasi antar afterimage (detik)
+
+function applyPhysics(delta){
+  // track previous grounded state to detect landing
+  const prevGrounded = isGrounded;
+
+  // [MODIFIKASI] Dapatkan ketinggian dataran di bawah pemain menggunakan Raycaster
+  let terrainHeight = -Infinity;
+  
+  // Siapkan raycaster: mulai dari 1m di atas pemain, arahkan ke bawah
+  const rayStart = player.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+  raycaster.set(rayStart, downVector);
+  
+  // Hanya cek tabrakan dengan groundMesh
+  const intersects = raycaster.intersectObject(groundMesh);
+  
+  if (intersects.length > 0) {
+    terrainHeight = intersects[0].point.y; // Ketinggian dataran yang akurat
+  } else {
+    // Fallback jika pemain di luar dataran (misal, 0 atau -100)
+    // Atur ke nilai yang sangat rendah agar pemain terus jatuh
+    terrainHeight = -100.0; 
+  }
+
+  if(!isGrounded) verticalVel += GRAVITY*delta;
+  player.position.y += verticalVel*delta;
+  
+  // [MODIFIKASI] Cek tabrakan dengan ketinggian dataran
+  // Tambahkan sedikit offset (0.01) agar tidak 'z-fighting'
+  if(player.position.y <= (terrainHeight + 0.01)){
+    player.position.y = terrainHeight; // Pijakkan pemain di dataran
+    isGrounded=true;
+    verticalVel=0;
+  } else {
+    isGrounded=false;
+  }
+
+  // landing detection: if previously in air and now grounded and we were in jump-phase air
+  if(!prevGrounded && isGrounded){
+    // if we were jumping and were in-air -> trigger landing anim
+    if(isJumping && jumpPhase === 'air'){
+      // stop any airborne anim (jump2 or jump5)
+      if(actions.jump2){
+        try{ actions.jump2.stop(); }catch(e){}
+      }
+      if(actions.jump5){
+        try{ actions.jump5.stop(); }catch(e){}
+      }
+
+      // Decide whether to play landing animation (jump3) or resume movement immediately.
+      // If player is idle at moment of landing, play jump3 (optional). If player started moving immediately, skip jump3.
+      if(currentMoveState === 'idle'){
+        if(actions.jump3){
+          // Lock movement during landing anim to keep it consistent
+          // [MODIFIKASI] (Goal 5) Izinkan input menginterupsi pendaratan
+          movementLocked = false;
+          animationLocked = false; // Izinkan animasi gerak untuk mengambil alih
+          playAction('jump3', FADE_ATTACK); // Cepat
+          jumpPhase = 'landing';
+          setStat('Mendarat — memainkan animasi mendarat (jump3), bisa diinterupsi');
+        } else {
+          // no jump3 available — restore control
+          movementLocked = false;
+          animationLocked = false;
+          isJumping = false;
+          jumpPhase = null;
+          if(actions.idleDefault) playAction('idleDefault', FADE_MOVE);
+          setStat('Mendarat — tidak ada jump3, kontrol dikembalikan');
+        }
+      } else {
+        // player moved immediately after landing — skip landing anim and resume motion animation
+        movementLocked = false;
+        animationLocked = false;
+        isJumping = false;
+        jumpPhase = null;
+        // resume appropriate movement animation based on currentMoveState
+        resumeMovementAnimation(); // Akan menggunakan FADE_MOVE
+        setStat('Mendarat — direktif : pemain bergerak -> langsung lanjut ke animasi gerak');
+      }
+    }
+  }
+}
+
+// ** [BARU] Fungsi Afterimage untuk Dash **
+
+function fadeOutAfterimage(clone, duration = 700) {
+  const start = performance.now();
+  
+  function fade() {
+    const elapsed = performance.now() - start;
+    const t = Math.max(0, 1 - elapsed / duration); // t goes from 1 to 0
+    
+    clone.traverse(child => {
+      if (child.isMesh && child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach(mat => {
+          if (mat.transparent) {
+            mat.opacity = 0.4 * t; // Fade opacity from 0.4 to 0
+          }
+          if (mat.emissive) {
+            mat.emissiveIntensity = 2.0 * t; // Fade emissive intensity from 2.0 to 0
+          }
+        });
+      }
+    });
+
+    if (t > 0) {
+      requestAnimationFrame(fade);
+    } else {
+      scene.remove(clone);
+      // Clean up materials
+      clone.traverse(child => {
+        if (child.isMesh) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.forEach(mat => {
+            mat.dispose(); 
+          });
+        }
+      });
+    }
+  }
+  fade();
+}
+
+function createAfterimage() {
+  if (!modelRoot || !player) return;
+
+  // Clone modelRoot (yang berisi skinned mesh)
+  const clone = SkeletonUtils.clone(modelRoot);
+  
+  // Dapatkan transformasi world dari 'player' (container)
+  const worldPos = new THREE.Vector3();
+  const worldQuat = new THREE.Quaternion();
+  player.getWorldPosition(worldPos);
+  player.getWorldQuaternion(worldQuat);
+
+  // Terapkan transformasi world ke clone
+  clone.position.copy(worldPos);
+  clone.quaternion.copy(worldQuat);
+
+  clone.traverse(child => {
+    if (child.isMesh) {
+      // [OPTIMALISASI] Nonaktifkan bayangan untuk afterimage
+      child.castShadow = false;
+      child.receiveShadow = false;
+        
+      // Pastikan kita membuat material baru
+      const materials = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
+      child.material = materials;
+      
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      
+      mats.forEach(mat => {
+        mat.transparent = true;
+        mat.opacity = 0.4;
+        mat.emissive = new THREE.Color(0x00aaff); // Cyan cerah
+        mat.emissiveIntensity = 2.0;
+        mat.roughness = 0.2; 
+        mat.metalness = 0.0;
+        mat.depthWrite = false; // Mencegah flicker
+      });
+    }
+  });
+
+  scene.add(clone);
+  fadeOutAfterimage(clone, 700); // Panggil fungsi fade
+}
+
+// ** Akhir dari fungsi Afterimage **
+
+
+const camPivot = new THREE.Object3D(); scene.add(camPivot); camPivot.position.copy(player.position); let camYaw = 0; let camPitch = 12 * Math.PI / 180; let camDistance = 3.0;
+function updateCamera(delta){ 
+  const desired = new THREE.Vector3().copy(player.position).add(new THREE.Vector3(0,1.4,0)); 
+  camPivot.position.lerp(desired, clamp(1 - Math.exp(-8 * delta), 0, 1)); 
+  const offset = new THREE.Vector3( Math.sin(camYaw) * camDistance * Math.cos(camPitch), Math.sin(camPitch) * camDistance, Math.cos(camYaw) * camDistance * Math.cos(camPitch) ); 
+  const camPos = new THREE.Vector3().copy(camPivot.position).add(offset); 
+  camera.position.lerp(camPos, clamp(1 - Math.exp(-10 * delta), 0, 1)); 
+  camera.lookAt(camPivot.position); 
+  
+  // [PERBAIKAN BUG 2]
+  // Buat target directional light (shadow camera) mengikuti player
+  if (dir && dir.target) {
+    // Lerp target ke posisi XZ player, tapi jaga Y agar tidak terlalu rendah
+    const targetPos = player.position.clone();
+    
+    // [MODIFIKASI] Gunakan ketinggian pemain (yang sudah di-clamp ke dataran)
+    // agar bayangan mengikuti naik turunnya bukit
+    targetPos.y = player.position.y; 
+    
+    dir.target.position.lerp(targetPos, 0.1); 
+  }
+}
+
+// Input (joystick + camera drag + jump handlers)
+const leftJoy=document.getElementById('leftJoy'); const stick=document.getElementById('stick'); const rightDrag=document.getElementById('rightDrag'); 
+const jumpBtn=document.getElementById('jumpBtn'); 
+const attackBtn=document.getElementById('attackBtn'); // ** Ambil tombol attack **
+const dashBtn=document.getElementById('dashBtn'); // ** Ambil tombol dash **
+const fsBtn=document.getElementById('fsBtn');
+let joyActive=false; let joyId=null; let joyCenter={x:0,y:0}; let joyX=0, joyY=0;
+
+/* ---------- JOYSTICK DISPLAY & POINTER LOGIC (UPDATED) ---------- */
+const JOY_SIZE = 140; // matches CSS .left-joystick size
+const STICK_MAX_PX = 36; // how many px stick moves from center (matches previous)
+function showJoystickAt(clientX, clientY){
+  // clamp so joystick stays fully onscreen
+  const half = JOY_SIZE/2;
+  let left = clientX - half;
+  let top = clientY - half;
+  left = Math.max(6, Math.min(left, window.innerWidth - JOY_SIZE - 6));
+  top = Math.max(6, Math.min(top, window.innerHeight - JOY_SIZE - 6));
+  leftJoy.style.left = `${left}px`;
+  leftJoy.style.top = `${top}px`;
+  leftJoy.classList.add('visible');
+  // recompute center
+  const rect = leftJoy.getBoundingClientRect();
+  joyCenter.x = rect.left + rect.width/2;
+  joyCenter.y = rect.top + rect.height/2;
+  leftJoy.setAttribute('aria-hidden', 'false');
+}
+
+function hideJoystick(){
+  leftJoy.classList.remove('visible');
+  leftJoy.setAttribute('aria-hidden', 'true');
+  // after hiding, reset stick transform
+  stick.style.transform = `translate(0px, 0px)`;
+}
+
+function startJoy(clientX, clientY, id){
+  // show joystick at pointer position and set active id
+  showJoystickAt(clientX, clientY);
+  joyActive = true;
+  joyId = id;
+  updateStick(clientX, clientY);
+}
+
+function updateStick(clientX, clientY){
+  const dx = clientX - joyCenter.x;
+  const dy = clientY - joyCenter.y;
+  const maxR = STICK_MAX_PX;
+  let nx = dx / maxR;
+  let ny = dy / maxR;
+  const mag = Math.sqrt(nx*nx + ny*ny);
+  if(mag > 1){ nx /= mag; ny /= mag; }
+  stick.style.transform = `translate(${nx*maxR}px, ${ny*maxR}px)`;
+
+
+  // normalized values in range [-1,1] for logic (we keep y inverted the same as before)
+  joyX = nx;
+  joyY = ny;
+}
+
+function endJoy(){
+  joyActive = false;
+  joyId = null;
+  joyX = 0; joyY = 0;
+  hideJoystick();
+}
+
+window.addEventListener('pointerdown', (e) => {
+  // ignore right-clicks, only primary button or touch
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  // if already controlling joystick, ignore new pointer
+  if(joyActive) return;
+  // only open joystick if pointer is on left half of screen
+  if(e.clientX <= (window.innerWidth / 2)){
+    // start joystick using pointerId
+    startJoy(e.clientX, e.clientY, e.pointerId);
+    // capture pointer to ensure we get move/up events
+    try{ e.target.setPointerCapture(e.pointerId); }catch(err){}
+  }
+}, { passive: false });
+
+window.addEventListener('pointermove', (e) => {
+  if(!joyActive) return;
+  if(e.pointerId !== joyId) return;
+  updateStick(e.clientX, e.clientY);
+}, { passive: true });
+
+window.addEventListener('pointerup', (e) => {
+  if(!joyActive) return;
+  if(e.pointerId !== joyId) return;
+  try{ e.target.releasePointerCapture(e.pointerId); }catch(err){}
+  endJoy();
+}, { passive: false });
+
+window.addEventListener('pointercancel', (e) => {
+  if(!joyActive) return;
+  if(e.pointerId !== joyId) return;
+  endJoy();
+});
+
+/* ---------- END JOYSTICK UPDATED LOGIC ---------- */
+
+let draggingCam=false; let camDragId=null; let lastX=0, lastY=0;
+rightDrag.addEventListener('touchstart', function(e){ e.preventDefault(); const t=e.changedTouches[0]; camDragId=t.identifier; lastX=t.clientX; lastY=t.clientY; draggingCam=true; }, { passive:false });
+rightDrag.addEventListener('touchmove', function(e){ e.preventDefault(); for(const t of e.changedTouches) if(t.identifier===camDragId){ const dx=(t.clientX-lastX), dy=(t.clientY-lastY); lastX=t.clientX; lastY=t.clientY; camYaw -= dx*0.005; camPitch = clamp(camPitch + dy*0.005, -Math.PI/4, Math.PI/3); break; } }, { passive:false });
+rightDrag.addEventListener('touchend', function(e){ e.preventDefault(); for(const t of e.changedTouches) if(t.identifier===camDragId){ draggingCam=false; camDragId=null; break;} }, { passive:false });
+rightDrag.addEventListener('touchcancel', function(e){ e.preventDefault(); draggingCam=false; camDragId=null; }, { passive:false });
+rightDrag.addEventListener('mousedown', (e)=>{ draggingCam=true; lastX=e.clientX; lastY=e.clientY; }); window.addEventListener('mousemove', (e)=>{ if(draggingCam){ const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; camYaw -= dx*0.005; camPitch = clamp(camPitch + dy*0.005, -Math.PI/4, Math.PI/3); }}); window.addEventListener('mouseup', ()=>{ draggingCam=false; });
+
+// JUMP state machine variables
+let movementLocked = false; // when true, player cannot start movement/animations (used during jump sequence)
+let animationLocked = false; // when true, animation changes from movement state are prevented but movement may still occur
+let isJumping = false;      // true while jump sequence active
+let jumpPhase = null;       // null | 'charging' | 'air' | 'landing'
+let jumpMoving = false;     // true if this jump was initiated while moving
+
+// jump initiation: allow when character is grounded and not already jumping
+function doJump(){
+  if(!isGrounded) return; // must be on ground to start
+  if(isJumping) return; // already in jump sequence
+  if(isAttacking) return; // ** Tidak bisa lompat saat menyerang **
+  if(isDashing) return; // ** Tidak bisa lompat saat dash **
+  if(isRolling) return; // ** [BARU] Tidak bisa lompat saat roll **
+
+  // If idle - use existing idle jump behaviour
+  if(currentMoveState === 'idle'){
+    if(!actions.jump1) { setStat('Anim jump1 belum tersedia'); return; }
+
+    // start jump1 (charging/ancang-ancang). Character cannot move during entire jump sequence.
+    movementLocked = true;
+    animationLocked = true;
+    isJumping = true;
+    jumpPhase = 'charging';
+    jumpMoving = false;
+    clearIdleVariationTimer();
+    if(actions.jump1){
+      playAction('jump1', FADE_ATTACK);
+      setStat('Menjalankan animasi jump1 (charging)');
+    } else {
+      // fallback immediate transition to air if jump1 not present
+      if(actions.jump2){
+        actions.jump2.setLoop(THREE.LoopOnce, 0);
+        playAction('jump2', FADE_ATTACK);
+        // allow movement while jump2 plays (user requested that jump2 allows movement), keep animation locked so jump2 plays through
+        movementLocked = false;
+        animationLocked = true;
+      }
+      verticalVel = JUMP_V;
+      isGrounded = false;
+      jumpPhase = 'air';
+    }
+    return;
+  }
+
+  // If moving - use moving-charge (jump4) then moving-air (jump5). Character should still be able to move while charging.
+  if(currentMoveState !== 'idle'){
+    if(!actions.jump4) { setStat('Anim jump4 belum tersedia'); return; }
+    animationLocked = true; // lock animation so walk/run won't interrupt jump4, but movement remains enabled
+    movementLocked = false;
+    isJumping = true;
+    jumpPhase = 'charging';
+    jumpMoving = true;
+    clearIdleVariationTimer();
+    playAction('jump4', FADE_ATTACK);
+    setStat('Menjalankan animasi jump4 (charging sambil bergerak)');
+    return;
+  }
+}
+
+// ** Fungsi untuk memulai/melanjutkan serangan **
+function doAttack() {
+  if (isJumping || jumpPhase !== null) return; // Tidak bisa menyerang saat melompat
+  if (!isGrounded) return; // Tidak bisa menyerang di udara
+  if (isDashing) return; // ** Tidak bisa menyerang saat dash **
+  if (isRolling) return; // ** [BARU] Tidak bisa menyerang saat roll **
+  
+  // Jika sedang menyerang, antri serangan berikutnya
+  if (isAttacking) {
+    attackQueued = true;
+    setStat('Serangan antrian...');
+    return;
+  }
+
+  // Mulai serangan pertama
+  isAttacking = true;
+  attackCombo = 1;
+  attackQueued = false;
+  movementLocked = true; // Kunci gerakan
+  animationLocked = true; // Kunci animasi
+  clearIdleVariationTimer();
+
+  const animName = ATTACK_COMBO_ANIM[0]; // 'punchleft'
+  if (actions[animName]) {
+    playAction(animName, FADE_ATTACK);
+    Forward(); // Gerak maju di serangan pertama
+    setStat(`Serangan 1: ${animName}`);
+  } else {
+    // Fail-safe jika animasi tidak ada
+    setStat('Animasi serangan tidak ditemukan');
+    resetAttackState();
+  }
+}
+
+// ** [MODIFIKASI] Fungsi untuk memulai dash (sekarang menerima arah swipe) **
+function doDash(swipeDX, swipeDY) {
+  // 1. Cek kondisi (grounded, not busy)
+  // [MODIFIKASI] (Goal 2) Hapus cek 'movementLocked' agar bisa interupsi attack/jump
+  if (!isGrounded || isJumping || isDashing || isRolling) { // ** [BARU] Tambahkan cek isRolling **
+    return;
+  }
+  // [TAMBAHAN] (Goal 2) Jika sedang menyerang, kita tetap ingin menginterupsi!
+  if (isAttacking) {
+    resetAttackState();
+  }
+
+  // 2. Dapatkan Arah Lokal (Layar)
+  // swipeDY (positif ke bawah) -> localZ (positif ke belakang)
+  let localDir = new THREE.Vector3(swipeDX, 0, swipeDY);
+  localDir.normalize();
+
+  // 3. Konversi ke Arah World (Relatif Kamera)
+  const cy = Math.cos(camYaw);
+  const sy = Math.sin(camYaw);
+  const worldX = localDir.x * cy + localDir.z * sy;
+  const worldZ = -localDir.x * sy + localDir.z * cy;
+  
+  // Simpan arah WORLD-SPACE di variabel global
+  dashDirection.set(worldX, 0, worldZ).normalize();
+
+  // 4. Tentukan Animasi (Berdasarkan swipeDX)
+  let dashAnimName;
+  const localXNorm = localDir.x; // Komponen kiri/kanan dari swipe
+
+  if (localXNorm < 0.0) { // Ada komponen ke kiri
+    dashAnimName = 'dashleft';
+  } else { // Lurus atau ada komponen ke kanan
+    dashAnimName = 'dashright';
+  }
+
+  // Fallback: jika anim yg dipilih tidak ada, gunakan yg lain
+  if (!actions[dashAnimName]) {
+    dashAnimName = (dashAnimName === 'dashleft' ? 'dashright' : 'dashleft');
+  }
+
+  // Cek terakhir
+  if (!actions[dashAnimName]) {
+    setStat('Tidak ada animasi dash (left/right) yang ditemukan!');
+    return;
+  }
+  
+  // [TAMBAHAN] (Goal 3/4) Hitung posisi awal dan akhir untuk Dash Easing
+  // [MODIFIKASI] Ini adalah kunci untuk jarak dash yang KONSISTEN
+  const totalDistance = DASH_SPEED * DASH_DURATION; // Jarak total
+  lungeStartPos.copy(player.position); // Gunakan ulang var lunge
+  lungeTargetPos.copy(lungeStartPos).addScaledVector(dashDirection, totalDistance);
+
+  // 5. Mulai Dash
+  isDashing = true;
+  movementLocked = true; // Kunci input gerakan normal (untuk menghindari pergerakan lain)
+  animationLocked = true; // Kunci agar animasi dash tidak terganggu
+  clearIdleVariationTimer();
+  
+  // ** [BARU] Reset timer afterimage saat dash dimulai **
+  dashAfterimageTimer = 0;
+  dashTime = 0; // [TAMBAHAN] Mulai timer dash (Goal 4)
+
+  // Mainkan animasi
+  playAction(dashAnimName, 0.2); // Transisi cepat
+  setStat(`Dashing ${dashAnimName}...`);
+}
+
+// ** [BARU] Fungsi untuk memulai roll (TAP) **
+function doRoll() {
+  // 1. Cek kondisi
+  // Bisa interupsi attack, tapi tidak bisa roll jika sudah di udara/sibuk
+  if (!isGrounded || isJumping || isDashing || isRolling) {
+    return;
+  }
+  // Interupsi serangan jika sedang menyerang
+  if (isAttacking) {
+    resetAttackState();
+  }
+  
+  // 2. Tentukan Arah (Forward)
+  // Dapatkan arah hadap player saat ini
+  const forwardDirection = new THREE.Vector3(0, 0, -1);
+  forwardDirection.applyQuaternion(player.quaternion);
+  forwardDirection.normalize();
+
+  // 3. Cek Animasi
+  if (!actions.roll) {
+    setStat('Tidak ada animasi roll yang ditemukan!');
+    return;
+  }
+  
+  // 4. Hitung Posisi
+  rollStartPos.copy(player.position);
+  rollTargetPos.copy(rollStartPos).addScaledVector(forwardDirection, ROLL_DISTANCE);
+  
+  // 5. Mulai Roll
+  isRolling = true;
+  rollTime = 0;
+  movementLocked = true;
+  animationLocked = true;
+  clearIdleVariationTimer();
+  
+  playAction('roll', 0.2); // Transisi cepat
+  setStat('Rolling...');
+}
+
+
+// ** PERBAIKAN: Hanya gunakan 'pointerdown' untuk menghindari event ganda **
+jumpBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); doJump(); }, { passive:false });
+window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); doJump(); } });
+
+// ** PERBAIKAN: Hanya gunakan 'pointerdown' untuk tombol attack **
+attackBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); doAttack(); }, { passive:false });
+
+// ** [BARU] Listener untuk DASH SWIPE **
+function startDashSwipe(e) {
+  // [PERBAIKAN BUG 3] Hapus 'isAttacking' dan 'movementLocked' dari guard
+  if (isDashing || isJumping || isRolling) return; // ** [BARU] Tambahkan cek isRolling **
+  // if (isDashing || isJumping || isAttacking || movementLocked) return; // <-- KODE LAMA
+  
+  e.preventDefault();
+  e.stopPropagation(); // Hentikan agar tidak drag kamera
+  isDashSwipeActive = true;
+  dashSwipeId = e.pointerId;
+  dashSwipeStartX = e.clientX;
+  dashSwipeStartY = e.clientY;
+  try {
+    // Tangkap pointer ke tombol dash
+    e.target.setPointerCapture(e.pointerId);
+  } catch(err) {}
+}
+
+function moveDashSwipe(e) {
+  // Hanya cek id, kita tidak peduli posisi tengah
+  if (!isDashSwipeActive || e.pointerId !== dashSwipeId) return;
+}
+
+function endDashSwipe(e) {
+  if (!isDashSwipeActive || e.pointerId !== dashSwipeId) return;
+  isDashSwipeActive = false;
+  try {
+    e.target.releasePointerCapture(e.pointerId);
+  } catch(err) {}
+
+  const swipeEndX = e.clientX;
+  const swipeEndY = e.clientY;
+  const dx = swipeEndX - dashSwipeStartX;
+  const dy = swipeEndY - dashSwipeStartY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  // Cek apakah ini swipe (jarak > threshold), bukan tap
+  if (dist >= SWIPE_THRESHOLD_PX) {
+    doDash(dx, dy); // Kirim vektor swipe mentah
+  } else {
+    // [MODIFIKASI] Ini adalah TAP. Panggil fungsi roll.
+    doRoll();
+  }
+  
+  dashSwipeId = null;
+}
+
+// Pasang listener swipe ke tombol dash
+dashBtn.addEventListener('pointerdown', startDashSwipe, { passive: false });
+// Pasang listener move/up ke window agar swipe tetap terdeteksi meski keluar tombol
+window.addEventListener('pointermove', moveDashSwipe, { passive: true });
+window.addEventListener('pointerup', endDashSwipe, { passive: false });
+window.addEventListener('pointercancel', endDashSwipe, { passive: false });
+
+
+// ** Listener untuk tombol SPECIAL (QTE) **
+specialBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation(); // Hentikan event agar tidak "jatuh" ke rightDrag (kamera)
+  
+  // Hanya bereaksi jika tombol terlihat (visible)
+  if (specialBtn.classList.contains('visible')) {
+    specialKickPrimed = true; // Set status berhasil
+    hideSpecialButton(); // Sembunyikan tombol segera
+    setStat('Special Ditekan!');
+  }
+}, { passive: false });
+
+
+// Fullscreen helper
+async function toggleFullscreen(){ try{ if(!document.fullscreenElement){ await document.documentElement.requestFullscreen(); fsSetIcon(true); } else { await document.exitFullscreen(); fsSetIcon(false); } }catch(e){ console.warn('Fullscreen failed', e); } }
+function fsSetIcon(isFull){ const svg=document.getElementById('fsIcon'); if(!svg) return; if(isFull){ svg.innerHTML='<path d="M9 3H3v6"></path><path d="M21 15v6h-6"></path><path d="M21 3h-6v6"></path><path d="M3 21v-6h6"></path>'; } else { svg.innerHTML='<path d="M3 9V3h6"></path><path d="M21 15v6h-6"></path><path d="M21 3h-6v6"></path><path d="M3 21v-6h6"></path>'; } }
+const fsBtnEl=document.getElementById('fsBtn'); fsBtnEl.addEventListener('click',(e)=>{ e.stopPropagation(); toggleFullscreen(); });
+
+// ** [BARU] Fungsi Easing untuk Pergerakan (Goal 3) **
+// Easing: easeOutQuad (Akselerasi di awal, deselerasi di akhir - untuk lunge dan dash)
+function easeOutQuad(t) {
+    return t * (2 - t);
+}
+
+// Movement update and animate loop
+function normalizeAngle(a){ while(a>Math.PI) a-=Math.PI*2; while(a<-Math.PI) a+=Math.PI*2; return a; }
+function lerpAngle(a,b,t){ let d = normalizeAngle(b-a); return a + d * t; }
+const MOVE_SPEED_LOCAL = MOVE_SPEED || 2.8; let last = performance.now(); let lastDelta = 0;
+
+let currentMoveState = 'idle'; // 'idle' | 'walk' | 'run'
+
+// --- [FUNGSI DENGAN PERBAIKAN TYPO] ---
+function updateMovement(delta){ 
+  attachModelToPlayer(); 
+
+  // ** [BARU] LOGIKA ROLL **
+  if (isRolling) {
+    rollTime += delta;
+    let t = rollTime / ROLL_DURATION; // Progress linear (0.0 -> 1.0)
+
+    if (t >= 1.0) {
+      t = 1.0;
+    }
+    
+    // Terapkan posisi (Interpolasi linear)
+    player.position.lerpVectors(rollStartPos, rollTargetPos, t);
+    
+    // Terapkan fisika (gravitasi)
+    applyPhysics(delta);
+    
+    // Cek selesai (dipisah dari listener 'finished' untuk keamanan)
+    // Jika animasi selesai LEBIH DULU, 'finished' akan reset.
+    // Jika 't' selesai lebih dulu, kita reset di sini.
+    if (t >= 1.0 && isRolling) { // Cek 'isRolling' lagi
+      resetRollState(); 
+    }
+    
+    // Lewati sisa logika gerakan
+    return; 
+  }
+  // ** AKHIR LOGIKA ROLL **
+
+  // ** [BARU] LOGIKA LUNGE ATTACK (Goal 3) **
+  if (isLunging) {
+    lungeTime += delta;
+    let t = lungeTime / LUNGE_DURATION;
+
+    if (t >= 1.0) {
+      t = 1.0;
+      isLunging = false; // Selesaikan lunge
+    }
+    
+    const easedT = easeOutQuad(t);
+    
+    // Lerp (interpolasi linear) dari A ke B menggunakan faktor easing
+    player.position.lerpVectors(lungeStartPos, lungeTargetPos, easedT);
+    
+    // Lunge selesai, tapi jangan 'return' karena gerakan normal (velocity)
+    // mungkin perlu di-nol-kan di bawah jika lunge adalah satu-satunya gerakan.
+  }
+
+  // ** [MODIFIKASI] LOGIKA DASH (Perubahan 1, 3, 4) **
+  if (isDashing) {
+    dashTime += delta;
+    
+    // Hitung progress (0.0 hingga 1.0)
+    let t = dashTime / DASH_DURATION;
+    
+    if (t >= 1.0) {
+      t = 1.0;
+      // (Selesai akan ditangani di bawah)
+    }
+    
+    // Hitung faktor pergerakan menggunakan Easing (Goal 3)
+    const easedT = easeOutQuad(t); 
+    
+    // Terapkan posisi (Goal 4: Jarak Konsisten)
+    // Ini adalah kunci dari Jarak Dash Konsisten
+    player.position.lerpVectors(lungeStartPos, lungeTargetPos, easedT);
+    
+    // (Goal 1: Hapus Rotasi)
+    // Blok rotasi yang ada di kode asli DIHAPUS.
+
+    // ** [BARU] Logika Afterimage **
+    dashAfterimageTimer += delta;
+    if (dashAfterimageTimer >= DASH_AFTERIMAGE_INTERVAL) {
+      createAfterimage();
+      dashAfterimageTimer = 0; // Reset timer
+    }
+    
+    // Terapkan fisika (gravitasi)
+    applyPhysics(delta);
+    
+    if (t >= 1.0) {
+      resetDashState(); // Reset *setelah* applyPhysics
+    }
+    
+    // Lewati sisa logika gerakan (joystick, rotasi)
+    return; 
+  }
+  // ** AKHIR LOGIKA DASH **
+
+
+  let jx = joyX; 
+  let jy = joyY; 
+  const mag = Math.sqrt(jx*jx + jy*jy); // determine discrete state
+
+  // if movement is locked (during jump sequence or attack), ignore joystick input for movement
+  if(movementLocked){
+    jx = 0; jy = 0;
+  }
+
+  let desiredState = 'idle';
+  if(mag > 0.0001 && !movementLocked){ desiredState = (mag > 0.5) ? 'run' : 'walk'; }
+
+  // if state changed, switch animation and cancel/resume idle variation but DO NOT change animations when animationLocked
+  if(desiredState !== currentMoveState){
+    if(!animationLocked && !movementLocked){
+      
+      // [PERBAIKAN UNTUK BUG 1]
+      // Jika kita menginterupsi animasi pendaratan (jumpPhase === 'landing')
+      // dengan gerakan baru, kita harus membersihkan status jump secara manual.
+      if (jumpPhase === 'landing') {
+        isJumping = false;
+        jumpPhase = null;
+        setStat('Pendaratan diinterupsi oleh gerakan.');
+      }
+      
+      currentMoveState = desiredState;
+      clearIdleVariationTimer();
+      if(currentMoveState === 'idle'){
+        if(actions.idleDefault) playAction('idleDefault', FADE_MOVE);
+        scheduleIdleVariation();
+      } else if(currentMoveState === 'walk'){
+        if(actions.walk) playAction('walk', FADE_MOVE); else if(actions.idleDefault) playAction('idleDefault', FADE_MOVE);
+      } else if(currentMoveState === 'run'){ // <-- TYPO DIPERBAIKI DI SINI
+        if(actions.run) playAction('run', FADE_MOVE); else if(actions.walk) playAction('walk', FADE_MOVE); else if(actions.idleDefault) playAction('idleDefault', FADE_MOVE);
+      }
+    } else {
+      // either animationLocked or movementLocked -> keep internal state but don't trigger playAction
+      currentMoveState = desiredState;
+    }
+  }
+
+  // compute movement direction (normalized) regardless of magnitude; speed is discrete
+  let moveLocal = new THREE.Vector3(jx,0,jy);
+  let moveDir = moveLocal.clone();
+  if(moveDir.lengthSq() > 0.000001) moveDir.normalize();
+  // rotate by camera yaw
+  const cy=Math.cos(camYaw), sy=Math.sin(camYaw);
+  const worldX = moveDir.x * cy + moveDir.z * sy;
+  const worldZ = -moveDir.x * sy + moveDir.z * cy;
+
+  let targetVel = new THREE.Vector3(0,0,0);
+  if(currentMoveState === 'walk'){
+    targetVel.set(worldX * WALK_SPEED, 0, worldZ * WALK_SPEED);
+  } else if(currentMoveState === 'run'){
+    targetVel.set(worldX * RUN_SPEED, 0, worldZ * RUN_SPEED);
+  } else {
+    targetVel.set(0,0,0);
+  }
+
+  const alpha = clamp(1 - Math.exp(-MOVE_ACCEL*delta), 0, 1);
+  velocity.lerp(targetVel, alpha);
+  player.position.addScaledVector(velocity, delta);
+
+  if(velocity.lengthSq()>0.0004){
+    const ang = Math.atan2(velocity.x, velocity.z);
+    const rotAlpha = clamp(1 - Math.exp(-ROT_ACCEL*delta), 0, 1);
+    player.rotation.y = lerpAngle(player.rotation.y, ang, rotAlpha);
+  }
+
+  applyPhysics(delta);
+}
+
+function animate(){ 
+  const now = performance.now(); 
+  lastDelta = Math.min((now-last)/1000, 0.05); 
+  last = now; 
+  
+  advanceGameTime(lastDelta); 
+  updateMovement(lastDelta); 
+  updateCamera(lastDelta); 
+  
+  const hour = getWorldHour(); 
+  updateSkyAndSunFromHour(hour); 
+  
+  if(mixer) mixer.update(lastDelta); 
+  
+  // [BARU] Update shader rumput (dari test.html)
+  if(grassMesh && grassMesh.material && grassMesh.material.uniforms) {
+    grassMesh.material.uniforms.time.value = now;
+  }
+  
+  renderer.render(scene, camera); 
+  requestAnimationFrame(animate); 
+}
+animate();
+
+window.addEventListener('resize', ()=>{ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// helpers exposed
+// window.setFloorPreset dihapus karena tidak relevan
+
+</script>
+</body>
+</html>
+
